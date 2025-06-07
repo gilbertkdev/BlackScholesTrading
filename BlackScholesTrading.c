@@ -3,6 +3,8 @@
 #include <math.h>
 #include <time.h>
 
+#include <mysql.h>
+
 #define DAYS 252
 
 // Function
@@ -32,13 +34,34 @@ int main() {
     BrownianMotion(S, mu, sigma, dt, path);
 
 
-    FILE *fout = fopen("BrownianMotion.txt", "w");
-
-    for (int i = 0; i < DAYS; i++) {
-        fprintf(fout, "%d %.5f\n", i, path[i]);
+    // === Connect to MySQL ===
+    MYSQL *conn = mysql_init(NULL);
+    if (!conn || !mysql_real_connect(conn, "localhost", "gilbertkdev", "wnsdn08@Lotte", "BlackScholesTrading", 0, NULL, 0)) {
+        fprintf(stderr, "Failed to Connect to Mysql at Localhost: %s\n", mysql_error(conn));
+        return 1;
     }
 
-    fclose(fout);
+    // Delete Existing Data
+    if (mysql_query(conn, "DELETE FROM PricePath")) {
+        fprintf(stderr, "Failed to Delete Existing Data: %s\n", mysql_error(conn));
+        mysql_close(conn);
+        return 1;
+    }
+
+    // Insert Day & Price Data to PricePath
+    char query[256];
+    for (int i = 0; i < DAYS; i++) {
+        snprintf(query, sizeof(query),
+                 "INSERT INTO PricePath (day, price) VALUES (%d, %.5f);", i, path[i]);
+        if (mysql_query(conn, query)) {
+            fprintf(stderr, "FAILED TO INSERT (day %d): %s\n", i, mysql_error(conn));
+        }
+    }
+
+    mysql_close(conn);
+    printf("COMPLETED.\n");
+
+    return 0;
 }
 
 
